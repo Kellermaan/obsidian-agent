@@ -1,90 +1,104 @@
-# Obsidian Sample Plugin
+# Obsidian Agent
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+An agent plugin for [Obsidian](https://obsidian.md).
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+## Features
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+- Adds a ribbon icon that shows a notice when clicked.
+- Adds commands accessible via the Command Palette:
+  - **Open modal (simple)** – opens a sample modal dialog.
+  - **Open modal (complex)** – opens a modal when a Markdown file is active.
+  - **Replace selected content** – replaces the current editor selection with sample text.
+- Adds a settings tab where you can configure the plugin.
 
-## First time developing plugins?
+## Installation
 
-Quick starting guide for new plugin devs:
+### From the Obsidian Community Plugin Browser (recommended)
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+1. Open Obsidian and go to **Settings → Community plugins**.
+2. Make sure **Safe mode** is off.
+3. Click **Browse** and search for **Obsidian Agent**.
+4. Click **Install**, then **Enable**.
 
-## Releasing new releases
+### Manual installation
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+1. Download the latest release from the [Releases page](https://github.com/Kellermaan/obsidian-agent/releases).
+2. Extract (or copy) `main.js`, `manifest.json`, and `styles.css` into your vault at:
+   ```
+   <YourVault>/.obsidian/plugins/obsidian-agent/
+   ```
+3. Reload Obsidian (Ctrl/Cmd + R, or close and reopen).
+4. Go to **Settings → Community plugins**, find **Obsidian Agent**, and enable it.
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+## Usage
 
-## Adding your plugin to the community plugin list
+1. After enabling the plugin, click the **dice** icon in the left ribbon to trigger a notice.
+2. Open the Command Palette (`Ctrl/Cmd + P`) and search for **Obsidian Agent** to see available commands.
+3. Configure the plugin under **Settings → Obsidian Agent**.
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+## Development
 
-## How to use
+### Prerequisites
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+- [Node.js](https://nodejs.org/) v18 or later
+- npm (bundled with Node.js)
 
-## Manually installing the plugin
+### Setup
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+```bash
+# Clone the repository into your vault's plugins folder for live testing
+git clone https://github.com/Kellermaan/obsidian-agent.git \
+  <YourVault>/.obsidian/plugins/obsidian-agent
 
-## Improve code quality with eslint
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
-
-## Funding URL
-
-You can include funding URLs where people who use your plugin can financially support it.
-
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
-
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
+cd obsidian-agent
+npm install
 ```
 
-If you have multiple URLs, you can also do:
+### Development build (watch mode)
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
+```bash
+npm run dev
 ```
 
-## API Documentation
+Obsidian will pick up changes automatically. Use the **Reload app without saving** command or restart Obsidian to apply them.
 
-See https://docs.obsidian.md
+### Production build
+
+```bash
+npm run build
+```
+
+Output: `main.js` in the repository root.
+
+### Lint
+
+```bash
+npm run lint
+```
+
+## Releasing a new version
+
+1. Update `minAppVersion` in `manifest.json` if the plugin requires a newer Obsidian API.
+2. Run one of the following to bump the version and update `manifest.json` / `versions.json`:
+   ```bash
+   npm version patch   # 1.0.0 → 1.0.1
+   npm version minor   # 1.0.0 → 1.1.0
+   npm version major   # 1.0.0 → 2.0.0
+   ```
+3. Push the commit **and** the generated version tag:
+   ```bash
+   git push && git push --tags
+   ```
+4. The [Release CI workflow](.github/workflows/release.yml) will automatically:
+   - Build the plugin.
+   - Create a GitHub Release for the tag.
+   - Attach `main.js`, `manifest.json`, and `styles.css` as release assets.
+
+## Contributing
+
+Pull requests are welcome. Please open an issue first to discuss significant changes.
+
+## License
+
+[0-BSD](LICENSE)
+
