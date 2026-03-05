@@ -4,6 +4,10 @@
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
 	"description": "An AI agent plugin for Obsidian that adds commands, modals, and configurable settings.",
+	"name": "AI Agent",
+	"version": "1.0.0",
+	"minAppVersion": "1.4.0",
+	"description": "AI-powered chat assistant that can read and edit your notes, powered by any OpenAI-compatible API.",
 	"author": "Kellermaan",
 	"authorUrl": "https://github.com/Kellermaan",
 	"isDesktopOnly": false
