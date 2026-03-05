@@ -1,5 +1,9 @@
 {
 	"id": "obsidian-agent",
+	"name": "Obsidian Agent",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "An AI agent plugin for Obsidian that adds commands, modals, and configurable settings.",
 	"name": "AI Agent",
 	"version": "1.0.0",
 	"minAppVersion": "1.4.0",
