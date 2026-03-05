@@ -5,8 +5,8 @@ import { ChatView, CHAT_VIEW_TYPE } from './ui/ChatView';
 export default class AgentPlugin extends Plugin {
 	settings!: AgentPluginSettings;
 
-// Register the chat panel view
-this.registerView(CHAT_VIEW_TYPE, (leaf) => new ChatView(leaf, this));
+	async onload() {
+		await this.loadSettings();
 
 		// Register the sidebar chat view
 		this.registerView(CHAT_VIEW_TYPE, leaf => new ChatView(leaf, this));
