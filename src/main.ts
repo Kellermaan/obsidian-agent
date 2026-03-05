@@ -1,4 +1,4 @@
-import { Plugin, WorkspaceLeaf } from 'obsidian';
+import { Editor, MarkdownView, Plugin, WorkspaceLeaf } from 'obsidian';
 import { AgentPluginSettings, AgentSettingTab, DEFAULT_SETTINGS } from './settings';
 import { ChatView, CHAT_VIEW_TYPE } from './ui/ChatView';
 
@@ -22,6 +22,36 @@ export default class AgentPlugin extends Plugin {
 			name: 'Open chat',
 			callback: () => {
 				void this.activateChatView();
+			},
+		});
+
+		// Add selected editor text as context in the chat input
+		this.addCommand({
+			id: 'add-selection-to-chat',
+			name: 'Add selected text to chat context',
+			editorCallback: (editor: Editor, view: MarkdownView) => {
+				const selectedText = editor.getSelection();
+				if (!selectedText) {
+					return;
+				}
+				const leaves = this.app.workspace.getLeavesOfType(CHAT_VIEW_TYPE);
+				if (leaves.length === 0) {
+					void this.activateChatView().then(() => {
+						const newLeaves = this.app.workspace.getLeavesOfType(CHAT_VIEW_TYPE);
+						if (newLeaves.length > 0) {
+							(newLeaves[0]!.view as ChatView).addSelectionToContext(
+								selectedText,
+								view.file?.path ?? '',
+							);
+						}
+					});
+				} else {
+					(leaves[0]!.view as ChatView).addSelectionToContext(
+						selectedText,
+						view.file?.path ?? '',
+					);
+					void this.activateChatView();
+				}
 			},
 		});
 

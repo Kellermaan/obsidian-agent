@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import AgentPlugin from './main';
+import { ChatSession } from './types';
 
 export interface AgentPluginSettings {
 	apiUrl: string;
@@ -9,6 +10,7 @@ export interface AgentPluginSettings {
 	maxTokens: number;
 	temperature: number;
 	autoApplyEdits: boolean;
+	chatSessions: ChatSession[];
 }
 
 export const DEFAULT_SETTINGS: AgentPluginSettings = {
@@ -23,6 +25,7 @@ export const DEFAULT_SETTINGS: AgentPluginSettings = {
 	maxTokens: 4096,
 	temperature: 0.7,
 	autoApplyEdits: false,
+	chatSessions: [],
 };
 
 export class AgentSettingTab extends PluginSettingTab {
