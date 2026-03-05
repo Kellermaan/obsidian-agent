@@ -27,3 +27,16 @@ export interface CompletionResult {
 	content: string;
 	toolCalls: ToolCall[];
 }
+
+export interface MessageDisplayInfo {
+	displayText?: string;
+	notePath?: string;
+}
+
+export interface ChatSession {
+	id: string;
+	title: string;
+	timestamp: number;
+	messages: ChatMessage[];
+	displayInfos: MessageDisplayInfo[];
+}
