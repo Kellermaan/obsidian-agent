@@ -677,14 +677,14 @@ export class ChatView extends ItemView {
 		if (toolName === 'write_file' || toolName === 'append_file') {
 			const path = args.path;
 			if (typeof path === 'string' && path !== implicitTargetPath) {
-				return `Blocked: user referred to the current document. Use path \"${implicitTargetPath}\" for this edit.`;
+				return `Blocked: user referred to the current document. Use path "${implicitTargetPath}" for this edit.`;
 			}
 		}
 
 		if (toolName === 'rename_path') {
 			const oldPath = args.oldPath;
 			if (typeof oldPath === 'string' && oldPath !== implicitTargetPath) {
-				return `Blocked: user referred to the current document. Use oldPath \"${implicitTargetPath}\" if renaming this document.`;
+				return `Blocked: user referred to the current document. Use oldPath "${implicitTargetPath}" if renaming this document.`;
 			}
 		}
 
