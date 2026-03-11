@@ -3,7 +3,25 @@ export interface Message {
 	role: 'user' | 'assistant' | 'system';
 	content: string;
 	timestamp: number;
+	agentUndoOperations?: AgentUndoOperation[];
+	agentUndoState?: 'available' | 'applied' | 'failed';
 }
+
+export type AgentUndoOperation =
+	| {
+		type: 'restore_file';
+		path: string;
+		content: string;
+	}
+	| {
+		type: 'delete_path';
+		path: string;
+	}
+	| {
+		type: 'rename_path';
+		oldPath: string;
+		newPath: string;
+	};
 
 export interface ContextAttachment {
 	id: string;

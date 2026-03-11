@@ -1,6 +1,7 @@
 import { ButtonComponent, ItemView, MarkdownRenderer, MarkdownView, Modal, Notice, Setting, TextAreaComponent, WorkspaceLeaf } from 'obsidian';
 import AgentPlugin from '../main';
 import { ChatManager } from '../models/ChatManager';
+import { AgentUndoOperation } from '../models/types';
 import { AgentMessage, AgentToolDefinition } from '../services/LLMService';
 import { VaultAgentService } from '../services/VaultAgentService';
 
@@ -142,6 +143,7 @@ export class ChatView extends ItemView {
 		await this.renderMessages();
 
 		try {
+			const undoOperations: AgentUndoOperation[] = [];
 			const workingMessages: AgentMessage[] = conversation.messages
 				.filter((message) => message.id !== loadingMsg.id)
 				.map((message) => ({ role: message.role, content: message.content }));
@@ -174,10 +176,13 @@ export class ChatView extends ItemView {
 				});
 
 				for (const toolCall of response.toolCalls) {
-					const result = await this.executeAgentTool(toolCall.name, toolCall.arguments);
+					const execution = await this.executeAgentTool(toolCall.name, toolCall.arguments);
+					if (execution.undoOperation) {
+						undoOperations.push(execution.undoOperation);
+					}
 					workingMessages.push({
 						role: 'tool',
-						content: result,
+						content: execution.result,
 						toolCallId: toolCall.id,
 					});
 				}
@@ -188,6 +193,7 @@ export class ChatView extends ItemView {
 			}
 
 			this.chatManager.updateMessage(conversation.id, loadingMsg.id, finalAnswer);
+			this.chatManager.setMessageUndoOperations(conversation.id, loadingMsg.id, undoOperations);
 			await this.renderMessages();
 			void this.plugin.saveChatHistory();
 		} catch (error) {
@@ -263,7 +269,19 @@ export class ChatView extends ItemView {
 			const metaRow = msgDiv.createDiv({ cls: 'agent-message-meta' });
 			metaRow.createDiv({ cls: 'agent-message-role', text: msg.role === 'user' ? 'You' : 'Agent' });
 
-			const copyBtn = new ButtonComponent(metaRow);
+			const actionRow = metaRow.createDiv({ cls: 'agent-message-actions' });
+
+			if (msg.role === 'assistant' && msg.agentUndoOperations && msg.agentUndoOperations.length > 0 && msg.agentUndoState !== 'applied') {
+				const undoBtn = new ButtonComponent(actionRow);
+				undoBtn.setClass('agent-message-undo-btn');
+				undoBtn.setButtonText('Revert');
+				undoBtn.setTooltip('Revert all operations from this response');
+				undoBtn.onClick(() => {
+					void this.revertAgentOperations(conversation.id, msg.id, msg.agentUndoOperations ?? []);
+				});
+			}
+
+			const copyBtn = new ButtonComponent(actionRow);
 			copyBtn.setClass('agent-message-copy-btn');
 			copyBtn.setIcon('copy');
 			copyBtn.setTooltip('Copy message');
@@ -472,7 +490,10 @@ export class ChatView extends ItemView {
 		];
 	}
 
-	private async executeAgentTool(toolName: string, rawArguments: string): Promise<string> {
+	private async executeAgentTool(
+		toolName: string,
+		rawArguments: string
+	): Promise<{ result: string; undoOperation?: AgentUndoOperation }> {
 		let args: Record<string, unknown> = {};
 		if (rawArguments.trim()) {
 			try {
@@ -485,37 +506,74 @@ export class ChatView extends ItemView {
 		if (this.requiresWriteConfirmation(toolName) && this.plugin.settings.requireWriteConfirmation) {
 			const approved = await this.confirmWriteAction(toolName, args);
 			if (!approved) {
-				return `Cancelled by user: ${toolName}`;
+				return { result: `Cancelled by user: ${toolName}` };
 			}
 		}
 
 		switch (toolName) {
 			case 'list_files': {
 				const limit = typeof args.limit === 'number' ? args.limit : 200;
-				return this.vaultAgentService.listFiles(limit);
+				return { result: this.vaultAgentService.listFiles(limit) };
 			}
 			case 'read_file': {
 				const path = this.getStringArg(args, 'path');
-				return await this.vaultAgentService.readFile(path);
+				return { result: await this.vaultAgentService.readFile(path) };
 			}
 			case 'write_file': {
 				const path = this.getStringArg(args, 'path');
 				const content = this.getStringArg(args, 'content');
-				return await this.vaultAgentService.writeFile(path, content);
+
+				const previousContent = await this.vaultAgentService.readFileIfExists(path);
+				const result = await this.vaultAgentService.writeFile(path, content);
+				const undoOperation: AgentUndoOperation = previousContent === null
+					? { type: 'delete_path', path }
+					: { type: 'restore_file', path, content: previousContent };
+
+				return { result, undoOperation };
 			}
 			case 'append_file': {
 				const path = this.getStringArg(args, 'path');
 				const content = this.getStringArg(args, 'content');
-				return await this.vaultAgentService.appendFile(path, content);
+				const previousContent = await this.vaultAgentService.readFileIfExists(path);
+				const result = await this.vaultAgentService.appendFile(path, content);
+				if (previousContent === null) {
+					return { result };
+				}
+
+				return {
+					result,
+					undoOperation: {
+						type: 'restore_file',
+						path,
+						content: previousContent,
+					},
+				};
 			}
 			case 'create_folder': {
 				const path = this.getStringArg(args, 'path');
-				return await this.vaultAgentService.createFolder(path);
+				const existed = this.vaultAgentService.getAbstractPath(path) !== null;
+				const result = await this.vaultAgentService.createFolder(path);
+				if (existed) {
+					return { result };
+				}
+
+				return {
+					result,
+					undoOperation: { type: 'delete_path', path },
+				};
 			}
 			case 'rename_path': {
 				const oldPath = this.getStringArg(args, 'oldPath');
 				const newPath = this.getStringArg(args, 'newPath');
-				return await this.vaultAgentService.renamePath(oldPath, newPath);
+				const result = await this.vaultAgentService.renamePath(oldPath, newPath);
+				return {
+					result,
+					undoOperation: {
+						type: 'rename_path',
+						oldPath: newPath,
+						newPath: oldPath,
+					},
+				};
 			}
 			default:
 				throw new Error(`Unsupported tool: ${toolName}`);
@@ -561,6 +619,49 @@ export class ChatView extends ItemView {
 			new Notice('Clipboard access unavailable. Select text and copy manually.');
 		} catch {
 			new Notice('Copy failed. Select text and copy manually.');
+		}
+	}
+
+	private async revertAgentOperations(
+		conversationId: string,
+		messageId: string,
+		operations: AgentUndoOperation[]
+	): Promise<void> {
+		if (operations.length === 0) {
+			new Notice('No operations to revert.');
+			return;
+		}
+
+		try {
+			for (let index = operations.length - 1; index >= 0; index--) {
+				const operation = operations[index];
+				if (!operation) continue;
+
+				if (operation.type === 'restore_file') {
+					await this.vaultAgentService.writeFile(operation.path, operation.content);
+					continue;
+				}
+
+				if (operation.type === 'delete_path') {
+					await this.vaultAgentService.deletePath(operation.path);
+					continue;
+				}
+
+				if (operation.type === 'rename_path') {
+					await this.vaultAgentService.renamePath(operation.oldPath, operation.newPath);
+				}
+			}
+
+			this.chatManager.setMessageUndoState(conversationId, messageId, 'applied');
+			await this.renderMessages();
+			void this.plugin.saveChatHistory();
+			new Notice('Agent operations reverted.');
+		} catch (error) {
+			this.chatManager.setMessageUndoState(conversationId, messageId, 'failed');
+			await this.renderMessages();
+			void this.plugin.saveChatHistory();
+			const message = error instanceof Error ? error.message : 'Unknown revert error';
+			new Notice(`Revert failed: ${message}`);
 		}
 	}
 

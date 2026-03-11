@@ -1,4 +1,4 @@
-import { App, TFile, normalizePath } from 'obsidian';
+import { App, TAbstractFile, TFile, TFolder, normalizePath } from 'obsidian';
 
 export class VaultAgentService {
 	private app: App;
@@ -71,6 +71,31 @@ export class VaultAgentService {
 		await this.ensureParentFolder(normalizedNewPath);
 		await this.app.fileManager.renameFile(existing, normalizedNewPath);
 		return `Renamed: ${normalizedOldPath} -> ${normalizedNewPath}`;
+	}
+
+	getAbstractPath(path: string): TAbstractFile | null {
+		const normalizedPath = normalizePath(path);
+		return this.app.vault.getAbstractFileByPath(normalizedPath);
+	}
+
+	async readFileIfExists(path: string): Promise<string | null> {
+		const file = this.getAbstractPath(path);
+		if (!(file instanceof TFile)) return null;
+		return await this.app.vault.cachedRead(file);
+	}
+
+	isFolder(path: string): boolean {
+		return this.getAbstractPath(path) instanceof TFolder;
+	}
+
+	async deletePath(path: string): Promise<string> {
+		const abstractPath = this.getAbstractPath(path);
+		if (!abstractPath) {
+			return `Path already missing: ${normalizePath(path)}`;
+		}
+
+		await this.app.fileManager.trashFile(abstractPath);
+		return `Deleted path: ${normalizePath(path)}`;
 	}
 
 	private async ensureParentFolder(path: string): Promise<void> {

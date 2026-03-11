@@ -1,4 +1,4 @@
-import { ContextAttachment, Conversation, Message, ChatState } from './types';
+import { AgentUndoOperation, ContextAttachment, Conversation, Message, ChatState } from './types';
 
 export class ChatManager {
 	private state: ChatState;
@@ -111,6 +111,29 @@ export class ChatManager {
 			message.content = content;
 			conversation.updatedAt = Date.now();
 		}
+	}
+
+	setMessageUndoOperations(conversationId: string, messageId: string, operations: AgentUndoOperation[]) {
+		const conversation = this.state.conversations.find(c => c.id === conversationId);
+		if (!conversation) return;
+
+		const message = conversation.messages.find(m => m.id === messageId);
+		if (!message) return;
+
+		message.agentUndoOperations = operations;
+		message.agentUndoState = operations.length > 0 ? 'available' : undefined;
+		conversation.updatedAt = Date.now();
+	}
+
+	setMessageUndoState(conversationId: string, messageId: string, state: 'available' | 'applied' | 'failed') {
+		const conversation = this.state.conversations.find(c => c.id === conversationId);
+		if (!conversation) return;
+
+		const message = conversation.messages.find(m => m.id === messageId);
+		if (!message) return;
+
+		message.agentUndoState = state;
+		conversation.updatedAt = Date.now();
 	}
 
 	private createTitleFromMessage(content: string): string {

@@ -143,6 +143,12 @@
     margin-bottom: 4px;
 }
 
+.agent-message-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
 .agent-message.user {
     align-self: flex-end;
     background-color: var(--interactive-accent);
@@ -164,6 +170,10 @@
 
 .agent-message-copy-btn {
     opacity: 0.8;
+}
+
+.agent-message-undo-btn {
+    opacity: 0.9;
 }
 
 .agent-message-content p {
