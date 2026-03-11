@@ -1,21 +1,27 @@
 import { ButtonComponent, ItemView, MarkdownRenderer, MarkdownView, Notice, TextAreaComponent, WorkspaceLeaf } from 'obsidian';
 import AgentPlugin from '../main';
 import { ChatManager } from '../models/ChatManager';
+import { AgentMessage, AgentToolDefinition } from '../services/LLMService';
+import { VaultAgentService } from '../services/VaultAgentService';
 
 export const VIEW_TYPE_CHAT = 'agent-chat-view';
 
 export class ChatView extends ItemView {
 	plugin: AgentPlugin;
 	chatManager: ChatManager;
+	vaultAgentService: VaultAgentService;
 	conversationListEl: HTMLElement;
 	contextListEl: HTMLElement;
 	chatContainer: HTMLElement;
 	inputComponent: TextAreaComponent;
+	agentModeEnabled: boolean;
 
 	constructor(leaf: WorkspaceLeaf, plugin: AgentPlugin) {
 		super(leaf);
 		this.plugin = plugin;
 		this.chatManager = plugin.chatManager;
+		this.vaultAgentService = new VaultAgentService(plugin.app);
+		this.agentModeEnabled = false;
 	}
 
 	getViewType() {
@@ -41,6 +47,12 @@ export class ChatView extends ItemView {
 		header.createEl('h3', { text: 'Chat' });
 
 		const headerActions = header.createDiv({ cls: 'agent-header-actions' });
+		const agentModeButton = new ButtonComponent(headerActions);
+		agentModeButton.setButtonText('Agent mode: off').onClick(() => {
+			this.agentModeEnabled = !this.agentModeEnabled;
+			agentModeButton.setButtonText(this.agentModeEnabled ? 'Agent mode: on' : 'Agent mode: off');
+		});
+
 		const newChatBtn = new ButtonComponent(headerActions);
 		newChatBtn.setIcon('plus').setTooltip('New chat').onClick(() => {
 			this.chatManager.createConversation('New chat');
@@ -115,7 +127,74 @@ export class ChatView extends ItemView {
 		this.renderConversationList();
 		await this.renderMessages();
 
-		await this.generateResponse();
+		if (this.agentModeEnabled) {
+			await this.generateAgentResponse();
+		} else {
+			await this.generateResponse();
+		}
+	}
+
+	async generateAgentResponse() {
+		const conversation = this.chatManager.getActiveConversation();
+		if (!conversation) return;
+
+		const loadingMsg = this.chatManager.addMessage(conversation.id, 'assistant', 'Agent is planning...');
+		await this.renderMessages();
+
+		try {
+			const workingMessages: AgentMessage[] = conversation.messages
+				.filter((message) => message.id !== loadingMsg.id)
+				.map((message) => ({ role: message.role, content: message.content }));
+
+			const contextPrompt = this.buildContextPrompt(conversation.id);
+			if (contextPrompt) {
+				workingMessages.unshift({ role: 'system', content: contextPrompt });
+			}
+
+			workingMessages.unshift({
+				role: 'system',
+				content: 'You are an Obsidian vault agent. Use tools when file operations are required. Keep operations precise and minimal.',
+			});
+
+			const tools = this.getAgentTools();
+			let finalAnswer = '';
+
+			for (let step = 0; step < 6; step++) {
+				const response = await this.plugin.llmService.generateAgentResponse(workingMessages, tools);
+
+				if (response.toolCalls.length === 0) {
+					finalAnswer = response.content || 'Done.';
+					break;
+				}
+
+				workingMessages.push({
+					role: 'assistant',
+					content: response.content,
+					toolCalls: response.toolCalls,
+				});
+
+				for (const toolCall of response.toolCalls) {
+					const result = await this.executeAgentTool(toolCall.name, toolCall.arguments);
+					workingMessages.push({
+						role: 'tool',
+						content: result,
+						toolCallId: toolCall.id,
+					});
+				}
+			}
+
+			if (!finalAnswer) {
+				finalAnswer = 'Agent finished tool calls. Please ask me to summarize results if needed.';
+			}
+
+			this.chatManager.updateMessage(conversation.id, loadingMsg.id, finalAnswer);
+			await this.renderMessages();
+			void this.plugin.saveChatHistory();
+		} catch (error) {
+			const message = error instanceof Error ? error.message : 'Unknown agent error';
+			this.chatManager.updateMessage(conversation.id, loadingMsg.id, `Agent error: ${message}`);
+			await this.renderMessages();
+		}
 	}
 
 	async generateResponse() {
@@ -290,6 +369,149 @@ export class ChatView extends ItemView {
 		});
 
 		return `You are given attached context from the user vault.\nUse it as primary reference when relevant to the question.\nIf the question needs data not present in context, say what is missing.\n\n${blocks.join('\n\n---\n\n')}`;
+	}
+
+	private getAgentTools(): AgentToolDefinition[] {
+		return [
+			{
+				type: 'function',
+				function: {
+					name: 'list_files',
+					description: 'List markdown files in the vault.',
+					parameters: {
+						type: 'object',
+						properties: {
+							limit: { type: 'number' },
+						},
+					},
+				},
+			},
+			{
+				type: 'function',
+				function: {
+					name: 'read_file',
+					description: 'Read file content by path.',
+					parameters: {
+						type: 'object',
+						required: ['path'],
+						properties: {
+							path: { type: 'string' },
+						},
+					},
+				},
+			},
+			{
+				type: 'function',
+				function: {
+					name: 'write_file',
+					description: 'Create or overwrite file content.',
+					parameters: {
+						type: 'object',
+						required: ['path', 'content'],
+						properties: {
+							path: { type: 'string' },
+							content: { type: 'string' },
+						},
+					},
+				},
+			},
+			{
+				type: 'function',
+				function: {
+					name: 'append_file',
+					description: 'Append content to existing file.',
+					parameters: {
+						type: 'object',
+						required: ['path', 'content'],
+						properties: {
+							path: { type: 'string' },
+							content: { type: 'string' },
+						},
+					},
+				},
+			},
+			{
+				type: 'function',
+				function: {
+					name: 'create_folder',
+					description: 'Create folder by path.',
+					parameters: {
+						type: 'object',
+						required: ['path'],
+						properties: {
+							path: { type: 'string' },
+						},
+					},
+				},
+			},
+			{
+				type: 'function',
+				function: {
+					name: 'rename_path',
+					description: 'Rename or move file/folder.',
+					parameters: {
+						type: 'object',
+						required: ['oldPath', 'newPath'],
+						properties: {
+							oldPath: { type: 'string' },
+							newPath: { type: 'string' },
+						},
+					},
+				},
+			},
+		];
+	}
+
+	private async executeAgentTool(toolName: string, rawArguments: string): Promise<string> {
+		let args: Record<string, unknown> = {};
+		if (rawArguments.trim()) {
+			try {
+				args = JSON.parse(rawArguments) as Record<string, unknown>;
+			} catch {
+				throw new Error(`Invalid tool arguments for ${toolName}`);
+			}
+		}
+
+		switch (toolName) {
+			case 'list_files': {
+				const limit = typeof args.limit === 'number' ? args.limit : 200;
+				return this.vaultAgentService.listFiles(limit);
+			}
+			case 'read_file': {
+				const path = this.getStringArg(args, 'path');
+				return await this.vaultAgentService.readFile(path);
+			}
+			case 'write_file': {
+				const path = this.getStringArg(args, 'path');
+				const content = this.getStringArg(args, 'content');
+				return await this.vaultAgentService.writeFile(path, content);
+			}
+			case 'append_file': {
+				const path = this.getStringArg(args, 'path');
+				const content = this.getStringArg(args, 'content');
+				return await this.vaultAgentService.appendFile(path, content);
+			}
+			case 'create_folder': {
+				const path = this.getStringArg(args, 'path');
+				return await this.vaultAgentService.createFolder(path);
+			}
+			case 'rename_path': {
+				const oldPath = this.getStringArg(args, 'oldPath');
+				const newPath = this.getStringArg(args, 'newPath');
+				return await this.vaultAgentService.renamePath(oldPath, newPath);
+			}
+			default:
+				throw new Error(`Unsupported tool: ${toolName}`);
+		}
+	}
+
+	private getStringArg(args: Record<string, unknown>, key: string): string {
+		const value = args[key];
+		if (typeof value !== 'string' || value.length === 0) {
+			throw new Error(`Missing required argument: ${key}`);
+		}
+
+		return value;
 	}
 
 	async onClose() {

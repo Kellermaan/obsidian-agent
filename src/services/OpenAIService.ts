@@ -1,6 +1,6 @@
 import { Notice, requestUrl } from 'obsidian';
 import { AgentSettings } from '../settings/settings';
-import { LLMService } from './LLMService';
+import { AgentMessage, AgentModelResponse, AgentToolDefinition, LLMService } from './LLMService';
 
 interface ChatCompletionMessage {
     role: 'system' | 'user' | 'assistant';
@@ -15,6 +15,31 @@ interface OpenAIChatChoice {
 
 interface OpenAIChatResponse {
     choices?: OpenAIChatChoice[];
+    error?: {
+        message?: string;
+    };
+}
+
+interface OpenAIToolCall {
+    id: string;
+    type: 'function';
+    function: {
+        name: string;
+        arguments: string;
+    };
+}
+
+interface OpenAIAgentMessage {
+    content?: string;
+    tool_calls?: OpenAIToolCall[];
+}
+
+interface OpenAIAgentChoice {
+    message?: OpenAIAgentMessage;
+}
+
+interface OpenAIAgentResponse {
+    choices?: OpenAIAgentChoice[];
     error?: {
         message?: string;
     };
@@ -92,5 +117,74 @@ export class OpenAIService implements LLMService {
             new Notice(`Agent error: ${normalizedError.message}`);
             onError(normalizedError);
         }
+    }
+
+    async generateAgentResponse(messages: AgentMessage[], tools: AgentToolDefinition[]): Promise<AgentModelResponse> {
+        const url = this.settings.provider === 'custom' && this.settings.baseUrl
+            ? `${this.settings.baseUrl}/chat/completions`
+            : 'https://api.openai.com/v1/chat/completions';
+
+        const response = await requestUrl({
+            url,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${this.settings.apiKey}`,
+            },
+            body: JSON.stringify({
+                model: this.settings.model,
+                messages: messages.map((message) => {
+                    if (message.role === 'tool') {
+                        return {
+                            role: 'tool',
+                            content: message.content,
+                            tool_call_id: message.toolCallId,
+                        };
+                    }
+
+                    if (message.role === 'assistant' && message.toolCalls && message.toolCalls.length > 0) {
+                        return {
+                            role: 'assistant',
+                            content: message.content,
+                            tool_calls: message.toolCalls.map((toolCall) => ({
+                                id: toolCall.id,
+                                type: 'function',
+                                function: {
+                                    name: toolCall.name,
+                                    arguments: toolCall.arguments,
+                                },
+                            })),
+                        };
+                    }
+
+                    return {
+                        role: message.role,
+                        content: message.content,
+                    };
+                }),
+                tools,
+                tool_choice: 'auto',
+                temperature: this.settings.temperature,
+                max_tokens: this.settings.maxTokens,
+                stream: false,
+            }),
+        });
+
+        const responseJson = response.json as OpenAIAgentResponse;
+        if (response.status >= 400) {
+            throw new Error(responseJson.error?.message ?? `HTTP Error: ${response.status}`);
+        }
+
+        const message = responseJson.choices?.[0]?.message;
+        const toolCalls = message?.tool_calls?.map((toolCall) => ({
+            id: toolCall.id,
+            name: toolCall.function.name,
+            arguments: toolCall.function.arguments,
+        })) ?? [];
+
+        return {
+            content: message?.content ?? '',
+            toolCalls,
+        };
     }
 }
