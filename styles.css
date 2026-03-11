@@ -19,6 +19,104 @@
     margin: 0;
 }
 
+.agent-header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.agent-body {
+    display: flex;
+    gap: 12px;
+    min-height: 0;
+    flex: 1;
+}
+
+.agent-conversation-sidebar {
+    width: 220px;
+    min-width: 180px;
+    border-right: 1px solid var(--background-modifier-border);
+    padding-right: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.agent-sidebar-title {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.agent-conversation-list {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.agent-conversation-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.agent-conversation-row.is-active {
+    background: var(--background-secondary-alt);
+    border-radius: 6px;
+}
+
+.agent-conversation-title-btn {
+    flex: 1;
+}
+
+.agent-conversation-delete-btn {
+    opacity: 0.8;
+}
+
+.agent-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.agent-context-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.agent-context-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 999px;
+    padding: 2px 8px;
+    background: var(--background-secondary);
+    max-width: 100%;
+}
+
+.agent-context-chip-label {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 280px;
+}
+
+.agent-context-hint,
+.agent-empty-state {
+    color: var(--text-muted);
+    font-size: 0.9em;
+}
+
 /* Messages Area */
 .agent-messages {
     flex: 1;
@@ -73,4 +171,18 @@
     flex: 1;
     resize: none;
     min-height: 40px;
+}
+
+@media (max-width: 900px) {
+    .agent-body {
+        flex-direction: column;
+    }
+
+    .agent-conversation-sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--background-modifier-border);
+        padding-right: 0;
+        padding-bottom: 8px;
+    }
 }

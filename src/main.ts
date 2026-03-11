@@ -1,4 +1,4 @@
-import { Editor, Notice, Plugin, WorkspaceLeaf } from 'obsidian';
+import { Editor, MarkdownView, Menu, Notice, Plugin, TFile, WorkspaceLeaf } from 'obsidian';
 import { AgentSettings, DEFAULT_SETTINGS } from './settings/settings';
 import { AgentSettingTab } from './settings/SettingsTab';
 import { ChatManager } from './models/ChatManager';
@@ -64,6 +64,57 @@ export default class AgentPlugin extends Plugin {
 			}
 		});
 
+		this.addCommand({
+			id: 'add-note-to-agent-context',
+			name: 'Add current note to agent context',
+			checkCallback: (checking) => {
+				const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+				if (!view?.file) {
+					return false;
+				}
+
+				if (!checking) {
+					void this.addFileContextToActiveConversation(view.file);
+				}
+
+				return true;
+			},
+		});
+
+		this.registerEvent(
+			this.app.workspace.on('file-menu', (menu: Menu, file) => {
+				if (!(file instanceof TFile)) return;
+
+				menu.addItem((item) => {
+					item
+						.setTitle('Add note to agent context')
+						.setIcon('bot')
+						.onClick(() => {
+							void this.addFileContextToActiveConversation(file);
+						});
+				});
+			})
+		);
+
+		this.registerEvent(
+			this.app.workspace.on('editor-menu', (menu: Menu, editor: Editor) => {
+				const selectedText = editor.getSelection().trim();
+				if (!selectedText) return;
+
+				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+				const file = markdownView?.file;
+
+				menu.addItem((item) => {
+					item
+						.setTitle('Add selection to agent context')
+						.setIcon('whole-word')
+						.onClick(() => {
+							void this.addSelectionContextToActiveConversation(selectedText, file ?? undefined);
+						});
+				});
+			})
+		);
+
 		this.addSettingTab(new AgentSettingTab(this.app, this));
 	}
 
@@ -116,5 +167,64 @@ export default class AgentPlugin extends Plugin {
 			await workspace.revealLeaf(leaf);
 		}
 		return leaf;
+	}
+
+	async addFileContextToActiveConversation(file: TFile): Promise<void> {
+		const content = await this.app.vault.cachedRead(file);
+		const conversation = this.chatManager.getActiveConversation() ?? this.chatManager.createConversation('New chat');
+
+		this.chatManager.addContextItem(conversation.id, {
+			type: 'file',
+			label: file.path,
+			sourcePath: file.path,
+			content: this.clipContext(content),
+		});
+
+		await this.saveChatHistory();
+		await this.refreshOpenChatView();
+		new Notice('Note added to agent context.');
+	}
+
+	async addSelectionContextToActiveConversation(selection: string, file?: TFile): Promise<void> {
+		const normalizedSelection = selection.trim();
+		if (!normalizedSelection) {
+			new Notice('Select text first to add selection context.');
+			return;
+		}
+
+		const conversation = this.chatManager.getActiveConversation() ?? this.chatManager.createConversation('New chat');
+		const label = file ? `${file.path} (selection)` : 'Selection';
+
+		this.chatManager.addContextItem(conversation.id, {
+			type: 'selection',
+			label,
+			sourcePath: file?.path,
+			content: this.clipContext(normalizedSelection),
+		});
+
+		await this.saveChatHistory();
+		await this.refreshOpenChatView();
+		new Notice('Selection added to agent context.');
+	}
+
+	private clipContext(content: string): string {
+		const maxChars = 6000;
+		if (content.length <= maxChars) {
+			return content;
+		}
+
+		return `${content.slice(0, maxChars)}\n\n[Context truncated]`;
+	}
+
+	private async refreshOpenChatView(): Promise<void> {
+		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
+		for (const leaf of leaves) {
+			const view = leaf.view;
+			if (view instanceof ChatView) {
+				view.renderConversationList();
+				view.renderContextItems();
+				await view.renderMessages();
+			}
+		}
 	}
 }

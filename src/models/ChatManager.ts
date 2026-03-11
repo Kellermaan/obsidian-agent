@@ -1,4 +1,4 @@
-import { Conversation, Message, ChatState } from './types';
+import { ContextAttachment, Conversation, Message, ChatState } from './types';
 
 export class ChatManager {
 	private state: ChatState;
@@ -11,7 +11,13 @@ export class ChatManager {
 	}
 
 	loadState(state: ChatState) {
-		this.state = state;
+		this.state = {
+			conversations: state.conversations.map((conversation) => ({
+				...conversation,
+				contextItems: conversation.contextItems ?? [],
+			})),
+			activeConversationId: state.activeConversationId,
+		};
 	}
 
 	getState(): ChatState {
@@ -23,6 +29,7 @@ export class ChatManager {
 			id: crypto.randomUUID(),
 			title,
 			messages: [],
+			contextItems: [],
 			createdAt: Date.now(),
 			updatedAt: Date.now()
 		};
@@ -43,8 +50,15 @@ export class ChatManager {
 		return this.state.conversations.find(c => c.id === this.state.activeConversationId) || null;
 	}
 
+	getConversations(): Conversation[] {
+		return [...this.state.conversations].sort((a, b) => b.updatedAt - a.updatedAt);
+	}
+
 	setActiveConversation(id: string) {
-		this.state.activeConversationId = id;
+		const exists = this.state.conversations.some((conversation) => conversation.id === id);
+		if (exists) {
+			this.state.activeConversationId = id;
+		}
 	}
 
 	addMessage(conversationId: string, role: 'user' | 'assistant' | 'system', content: string): Message {
@@ -58,8 +72,34 @@ export class ChatManager {
 			timestamp: Date.now()
 		};
 		conversation.messages.push(message);
+		if (role === 'user' && conversation.messages.length === 1) {
+			conversation.title = this.createTitleFromMessage(content);
+		}
 		conversation.updatedAt = Date.now();
 		return message;
+	}
+
+	addContextItem(conversationId: string, item: Omit<ContextAttachment, 'id' | 'createdAt'>): ContextAttachment {
+		const conversation = this.state.conversations.find(c => c.id === conversationId);
+		if (!conversation) throw new Error('Conversation not found');
+
+		const contextItem: ContextAttachment = {
+			id: crypto.randomUUID(),
+			createdAt: Date.now(),
+			...item,
+		};
+
+		conversation.contextItems.push(contextItem);
+		conversation.updatedAt = Date.now();
+		return contextItem;
+	}
+
+	removeContextItem(conversationId: string, contextItemId: string) {
+		const conversation = this.state.conversations.find(c => c.id === conversationId);
+		if (!conversation) return;
+
+		conversation.contextItems = conversation.contextItems.filter((item) => item.id !== contextItemId);
+		conversation.updatedAt = Date.now();
 	}
 
 	updateMessage(conversationId: string, messageId: string, content: string) {
@@ -71,5 +111,11 @@ export class ChatManager {
 			message.content = content;
 			conversation.updatedAt = Date.now();
 		}
+	}
+
+	private createTitleFromMessage(content: string): string {
+		const compact = content.replace(/\s+/g, ' ').trim();
+		if (!compact) return 'New chat';
+		return compact.length > 40 ? `${compact.slice(0, 40)}...` : compact;
 	}
 }

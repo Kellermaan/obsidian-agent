@@ -5,10 +5,20 @@ export interface Message {
 	timestamp: number;
 }
 
+export interface ContextAttachment {
+	id: string;
+	type: 'file' | 'selection';
+	label: string;
+	content: string;
+	sourcePath?: string;
+	createdAt: number;
+}
+
 export interface Conversation {
 	id: string;
 	title: string;
 	messages: Message[];
+	contextItems: ContextAttachment[];
 	createdAt: number;
 	updatedAt: number;
 }
