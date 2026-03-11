@@ -1,7 +1,7 @@
 import { ButtonComponent, ItemView, MarkdownRenderer, MarkdownView, Modal, Notice, Setting, TextAreaComponent, WorkspaceLeaf } from 'obsidian';
 import AgentPlugin from '../main';
 import { ChatManager } from '../models/ChatManager';
-import { AgentUndoOperation } from '../models/types';
+import { AgentUndoOperation, Conversation } from '../models/types';
 import { AgentMessage, AgentToolDefinition } from '../services/LLMService';
 import { VaultAgentService } from '../services/VaultAgentService';
 
@@ -405,13 +405,30 @@ export class ChatView extends ItemView {
 			return null;
 		}
 
-		const blocks = conversation.contextItems.map((item, index) => {
+		const manualItems = conversation.contextItems.filter((item) => !item.isAutoActiveFile);
+		const autoItems = conversation.contextItems.filter((item) => item.isAutoActiveFile);
+		const orderedItems = [...manualItems, ...autoItems];
+
+		const manualTargetPath = [...manualItems]
+			.reverse()
+			.find((item) => item.sourcePath)?.sourcePath;
+
+		const blocks = orderedItems.map((item, index) => {
 			const header = item.type === 'file' ? `File context ${index + 1}` : `Selection context ${index + 1}`;
-			const source = item.sourcePath ? `Source: ${item.sourcePath}` : 'Source: unknown';
+			const sourceTag = item.isAutoActiveFile ? ' (auto)' : ' (manual)';
+			const source = item.sourcePath ? `Source${sourceTag}: ${item.sourcePath}` : `Source${sourceTag}: unknown`;
 			return `${header}\n${source}\n\n\`\`\`\n${item.content}\n\`\`\``;
 		});
 
-		return `You are given attached context from the user vault.\nUse it as primary reference when relevant to the question.\nIf the question needs data not present in context, say what is missing.\n\n${blocks.join('\n\n---\n\n')}`;
+		const priorityRule = manualItems.length > 0
+			? 'Manual context is authoritative. If manual and auto context conflict, follow manual context first.'
+			: 'Use attached context as primary reference.';
+
+		const targetRule = manualTargetPath
+			? `When user says "this document" or equivalent, treat this as the target file path: ${manualTargetPath}`
+			: 'When user says "this document", prefer the context source path that best matches user intent.';
+
+		return `You are given attached context from the user vault.\n${priorityRule}\n${targetRule}\nIf the question needs data not present in context, say what is missing.\n\n${blocks.join('\n\n---\n\n')}`;
 	}
 
 	private getAgentTools(): AgentToolDefinition[] {
@@ -518,6 +535,15 @@ export class ChatView extends ItemView {
 			}
 		}
 
+		const activeConversation = this.chatManager.getActiveConversation();
+		const implicitTargetPath = activeConversation ? this.getImplicitTargetPath(activeConversation) : null;
+		if (implicitTargetPath) {
+			const mismatchReason = this.getImplicitTargetMismatchReason(toolName, args, implicitTargetPath);
+			if (mismatchReason) {
+				return { result: mismatchReason };
+			}
+		}
+
 		if (this.requiresWriteConfirmation(toolName) && this.plugin.settings.requireWriteConfirmation) {
 			const approved = await this.confirmWriteAction(toolName, args);
 			if (!approved) {
@@ -621,6 +647,48 @@ export class ChatView extends ItemView {
 		}
 
 		return value;
+	}
+
+	private getImplicitTargetPath(conversation: Conversation): string | null {
+		const latestUserMessage = [...conversation.messages]
+			.reverse()
+			.find((message) => message.role === 'user')?.content ?? '';
+
+		const refersCurrentDocument = /(this document|this doc|this note|current document|当前文档|这个文档|该文档|这个笔记|当前笔记)/i.test(latestUserMessage);
+		if (!refersCurrentDocument) {
+			return null;
+		}
+
+		const latestManualSourcePath = [...conversation.contextItems]
+			.reverse()
+			.find((item) => !item.isAutoActiveFile && item.sourcePath)?.sourcePath;
+		if (latestManualSourcePath) {
+			return latestManualSourcePath;
+		}
+
+		const latestAutoSourcePath = [...conversation.contextItems]
+			.reverse()
+			.find((item) => item.isAutoActiveFile && item.sourcePath)?.sourcePath;
+
+		return latestAutoSourcePath ?? null;
+	}
+
+	private getImplicitTargetMismatchReason(toolName: string, args: Record<string, unknown>, implicitTargetPath: string): string | null {
+		if (toolName === 'write_file' || toolName === 'append_file') {
+			const path = args.path;
+			if (typeof path === 'string' && path !== implicitTargetPath) {
+				return `Blocked: user referred to the current document. Use path \"${implicitTargetPath}\" for this edit.`;
+			}
+		}
+
+		if (toolName === 'rename_path') {
+			const oldPath = args.oldPath;
+			if (typeof oldPath === 'string' && oldPath !== implicitTargetPath) {
+				return `Blocked: user referred to the current document. Use oldPath \"${implicitTargetPath}\" if renaming this document.`;
+			}
+		}
+
+		return null;
 	}
 
 	private async copyMessageContent(content: string): Promise<void> {
