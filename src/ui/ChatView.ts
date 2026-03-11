@@ -260,7 +260,17 @@ export class ChatView extends ItemView {
 
 		for (const msg of conversation.messages) {
 			const msgDiv = this.chatContainer.createDiv({ cls: `agent-message ${msg.role}` });
-			msgDiv.createDiv({ cls: 'agent-message-role', text: msg.role === 'user' ? 'You' : 'Agent' });
+			const metaRow = msgDiv.createDiv({ cls: 'agent-message-meta' });
+			metaRow.createDiv({ cls: 'agent-message-role', text: msg.role === 'user' ? 'You' : 'Agent' });
+
+			const copyBtn = new ButtonComponent(metaRow);
+			copyBtn.setClass('agent-message-copy-btn');
+			copyBtn.setIcon('copy');
+			copyBtn.setTooltip('Copy message');
+			copyBtn.onClick(() => {
+				void this.copyMessageContent(msg.content);
+			});
+
 			const contentDiv = msgDiv.createDiv({ cls: 'agent-message-content' });
 			
 			await MarkdownRenderer.render(this.plugin.app, msg.content, contentDiv, '', this);
@@ -512,6 +522,20 @@ export class ChatView extends ItemView {
 		}
 
 		return value;
+	}
+
+	private async copyMessageContent(content: string): Promise<void> {
+		try {
+			if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+				await navigator.clipboard.writeText(content);
+				new Notice('Message copied.');
+				return;
+			}
+
+			new Notice('Clipboard access unavailable. Select text and copy manually.');
+		} catch {
+			new Notice('Copy failed. Select text and copy manually.');
+		}
 	}
 
 	async onClose() {
