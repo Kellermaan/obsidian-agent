@@ -329,6 +329,17 @@ export class ChatView extends ItemView {
 				this.renderContextItems();
 				void this.renderMessages();
 			});
+
+			const clearHistoryButton = new ButtonComponent(row);
+			clearHistoryButton.setClass('agent-conversation-clear-btn');
+			clearHistoryButton.setIcon('eraser');
+			clearHistoryButton.setTooltip('Clear conversation history');
+			clearHistoryButton.onClick(() => {
+				this.chatManager.clearConversationHistory(conversation.id);
+				void this.plugin.saveChatHistory();
+				this.renderConversationList();
+				void this.renderMessages();
+			});
 		}
 	}
 

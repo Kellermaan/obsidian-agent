@@ -46,6 +46,14 @@ export class ChatManager {
 		}
 	}
 
+	clearConversationHistory(id: string) {
+		const conversation = this.state.conversations.find(c => c.id === id);
+		if (!conversation) return;
+
+		conversation.messages = [];
+		conversation.updatedAt = Date.now();
+	}
+
 	getActiveConversation(): Conversation | null {
 		return this.state.conversations.find(c => c.id === this.state.activeConversationId) || null;
 	}

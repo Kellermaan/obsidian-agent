@@ -76,6 +76,10 @@
     opacity: 0.8;
 }
 
+.agent-conversation-clear-btn {
+    opacity: 0.8;
+}
+
 .agent-main {
     flex: 1;
     min-width: 0;
