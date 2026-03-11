@@ -104,5 +104,17 @@ export class AgentSettingTab extends PluginSettingTab {
 					}
 					await this.plugin.saveSettings();
 				}));
+
+		new Setting(containerEl)
+			.setName('Require confirmation before write actions')
+			.setDesc('Ask for confirmation before the agent writes, appends, renames, or creates folders.')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.requireWriteConfirmation)
+					.onChange(async (value) => {
+						this.plugin.settings.requireWriteConfirmation = value;
+						await this.plugin.saveSettings();
+					})
+			);
 	}
 }

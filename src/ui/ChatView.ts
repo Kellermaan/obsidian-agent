@@ -1,4 +1,4 @@
-import { ButtonComponent, ItemView, MarkdownRenderer, MarkdownView, Notice, TextAreaComponent, WorkspaceLeaf } from 'obsidian';
+import { ButtonComponent, ItemView, MarkdownRenderer, MarkdownView, Modal, Notice, Setting, TextAreaComponent, WorkspaceLeaf } from 'obsidian';
 import AgentPlugin from '../main';
 import { ChatManager } from '../models/ChatManager';
 import { AgentMessage, AgentToolDefinition } from '../services/LLMService';
@@ -482,6 +482,13 @@ export class ChatView extends ItemView {
 			}
 		}
 
+		if (this.requiresWriteConfirmation(toolName) && this.plugin.settings.requireWriteConfirmation) {
+			const approved = await this.confirmWriteAction(toolName, args);
+			if (!approved) {
+				return `Cancelled by user: ${toolName}`;
+			}
+		}
+
 		switch (toolName) {
 			case 'list_files': {
 				const limit = typeof args.limit === 'number' ? args.limit : 200;
@@ -515,6 +522,25 @@ export class ChatView extends ItemView {
 		}
 	}
 
+	private requiresWriteConfirmation(toolName: string): boolean {
+		return toolName === 'write_file'
+			|| toolName === 'append_file'
+			|| toolName === 'create_folder'
+			|| toolName === 'rename_path';
+	}
+
+	private async confirmWriteAction(toolName: string, args: Record<string, unknown>): Promise<boolean> {
+		return await new Promise<boolean>((resolve) => {
+			const modal = new AgentWriteConfirmModal(
+				this.app,
+				toolName,
+				JSON.stringify(args, null, 2),
+				resolve,
+			);
+			modal.open();
+		});
+	}
+
 	private getStringArg(args: Record<string, unknown>, key: string): string {
 		const value = args[key];
 		if (typeof value !== 'string' || value.length === 0) {
@@ -540,5 +566,61 @@ export class ChatView extends ItemView {
 
 	async onClose() {
 		// Cleanup
+	}
+}
+
+class AgentWriteConfirmModal extends Modal {
+	private toolName: string;
+	private argsPreview: string;
+	private resolver: (approved: boolean) => void;
+	private resolved: boolean;
+
+	constructor(app: AgentPlugin['app'], toolName: string, argsPreview: string, resolver: (approved: boolean) => void) {
+		super(app);
+		this.toolName = toolName;
+		this.argsPreview = argsPreview;
+		this.resolver = resolver;
+		this.resolved = false;
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+
+		contentEl.createEl('h3', { text: 'Confirm write action' });
+		contentEl.createEl('p', { text: `Agent requested tool: ${this.toolName}` });
+
+		const previewEl = contentEl.createEl('pre', { cls: 'agent-write-confirm-preview' });
+		previewEl.setText(this.argsPreview);
+
+		new Setting(contentEl)
+			.addButton((button) =>
+				button
+					.setButtonText('Allow')
+					.setCta()
+					.onClick(() => {
+						this.resolveOnce(true);
+						this.close();
+					})
+			)
+			.addButton((button) =>
+				button
+					.setButtonText('Cancel')
+					.onClick(() => {
+						this.resolveOnce(false);
+						this.close();
+					})
+			);
+	}
+
+	onClose(): void {
+		this.resolveOnce(false);
+		this.contentEl.empty();
+	}
+
+	private resolveOnce(value: boolean): void {
+		if (this.resolved) return;
+		this.resolved = true;
+		this.resolver(value);
 	}
 }
