@@ -29,6 +29,7 @@ export interface ContextAttachment {
 	label: string;
 	content: string;
 	sourcePath?: string;
+	isAutoActiveFile?: boolean;
 	createdAt: number;
 }
 

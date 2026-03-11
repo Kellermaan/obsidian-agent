@@ -110,6 +110,56 @@ export class ChatManager {
 		conversation.updatedAt = Date.now();
 	}
 
+	upsertAutoActiveFileContext(conversationId: string, item: Omit<ContextAttachment, 'id' | 'createdAt'>): boolean {
+		const conversation = this.state.conversations.find(c => c.id === conversationId);
+		if (!conversation) return false;
+
+		const existing = conversation.contextItems.find((contextItem) => contextItem.isAutoActiveFile);
+		if (existing) {
+			const changed = existing.type !== item.type
+				|| existing.label !== item.label
+				|| existing.content !== item.content
+				|| existing.sourcePath !== item.sourcePath
+				|| existing.isAutoActiveFile !== true;
+			if (!changed) {
+				return false;
+			}
+
+			existing.type = item.type;
+			existing.label = item.label;
+			existing.content = item.content;
+			existing.sourcePath = item.sourcePath;
+			existing.isAutoActiveFile = true;
+			conversation.updatedAt = Date.now();
+			return true;
+		}
+
+		const contextItem: ContextAttachment = {
+			id: crypto.randomUUID(),
+			createdAt: Date.now(),
+			...item,
+			isAutoActiveFile: true,
+		};
+
+		conversation.contextItems.push(contextItem);
+		conversation.updatedAt = Date.now();
+		return true;
+	}
+
+	removeAutoActiveFileContext(conversationId: string): boolean {
+		const conversation = this.state.conversations.find(c => c.id === conversationId);
+		if (!conversation) return false;
+
+		const before = conversation.contextItems.length;
+		conversation.contextItems = conversation.contextItems.filter((item) => !item.isAutoActiveFile);
+		const changed = conversation.contextItems.length !== before;
+		if (changed) {
+			conversation.updatedAt = Date.now();
+		}
+
+		return changed;
+	}
+
 	updateMessage(conversationId: string, messageId: string, content: string) {
 		const conversation = this.state.conversations.find(c => c.id === conversationId);
 		if (!conversation) return;

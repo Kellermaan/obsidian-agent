@@ -115,6 +115,12 @@ export default class AgentPlugin extends Plugin {
 			})
 		);
 
+		this.registerEvent(
+			this.app.workspace.on('file-open', () => {
+				void this.syncActiveFileToConversationContext();
+			})
+		);
+
 		this.addSettingTab(new AgentSettingTab(this.app, this));
 	}
 
@@ -205,6 +211,35 @@ export default class AgentPlugin extends Plugin {
 		await this.saveChatHistory();
 		await this.refreshOpenChatView();
 		new Notice('Selection added to agent context.');
+	}
+
+	async syncActiveFileToConversationContext(): Promise<void> {
+		const conversation = this.chatManager.getActiveConversation();
+		if (!conversation) return;
+
+		const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!markdownView?.file) {
+			const removed = this.chatManager.removeAutoActiveFileContext(conversation.id);
+			if (removed) {
+				await this.saveChatHistory();
+				await this.refreshOpenChatView();
+			}
+			return;
+		}
+
+		const content = await this.app.vault.cachedRead(markdownView.file);
+		const changed = this.chatManager.upsertAutoActiveFileContext(conversation.id, {
+			type: 'file',
+			label: `Active: ${markdownView.file.path}`,
+			sourcePath: markdownView.file.path,
+			content: this.clipContext(content),
+			isAutoActiveFile: true,
+		});
+
+		if (changed) {
+			await this.saveChatHistory();
+			await this.refreshOpenChatView();
+		}
 	}
 
 	private clipContext(content: string): string {

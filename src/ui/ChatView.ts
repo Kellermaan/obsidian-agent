@@ -106,6 +106,8 @@ export class ChatView extends ItemView {
 			this.chatManager.createConversation('New chat');
 		}
 
+		await this.plugin.syncActiveFileToConversationContext();
+
 		this.renderConversationList();
 		this.renderContextItems();
 		void this.renderMessages();
@@ -122,6 +124,8 @@ export class ChatView extends ItemView {
 			conversation = this.chatManager.createConversation('New chat');
 			this.renderConversationList();
 		}
+
+		await this.plugin.syncActiveFileToConversationContext();
 
 		this.chatManager.addMessage(conversation.id, 'user', content);
 		void this.plugin.saveChatHistory();
