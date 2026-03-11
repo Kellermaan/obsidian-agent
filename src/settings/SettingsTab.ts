@@ -3,7 +3,7 @@ import AgentPlugin from '../main';
 import { AgentSettings } from './settings';
 
 function isAgentProvider(value: string): value is AgentSettings['provider'] {
-	return value === 'openai' || value === 'anthropic' || value === 'custom';
+	return value === 'openai' || value === 'anthropic' || value === 'custom' || value === 'custom-anthropic';
 }
 
 export class AgentSettingTab extends PluginSettingTab {
@@ -24,7 +24,9 @@ export class AgentSettingTab extends PluginSettingTab {
 			.setDesc('Select the AI provider.')
 			.addDropdown(dropdown => dropdown
 				.addOption('openai', 'Openai service')
+				.addOption('anthropic', 'Anthropic service')
 				.addOption('custom', 'Custom openai-compatible service')
+				.addOption('custom-anthropic', 'Custom anthropic-compatible service')
 				.setValue(this.plugin.settings.provider)
 				.onChange(async (value) => {
 					if (isAgentProvider(value)) {
@@ -56,12 +58,13 @@ export class AgentSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 		
-		if (this.plugin.settings.provider === 'custom') {
+		if (this.plugin.settings.provider === 'custom' || this.plugin.settings.provider === 'custom-anthropic') {
+			const isCustomAnthropic = this.plugin.settings.provider === 'custom-anthropic';
 			new Setting(containerEl)
 				.setName('Base URL')
 				.setDesc('Enter the base URL for the API.')
 				.addText(text => text
-					.setPlaceholder('https://api.openai.com/v1')
+					.setPlaceholder(isCustomAnthropic ? 'https://api.anthropic.com/v1' : 'https://api.openai.com/v1')
 					.setValue(this.plugin.settings.baseUrl || '')
 					.onChange(async (value) => {
 						this.plugin.settings.baseUrl = value;

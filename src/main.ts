@@ -3,7 +3,7 @@ import { AgentSettings, DEFAULT_SETTINGS } from './settings/settings';
 import { AgentSettingTab } from './settings/SettingsTab';
 import { ChatManager } from './models/ChatManager';
 import { ChatState } from './models/types';
-import { OpenAIService } from './services/OpenAIService';
+import { LLMProviderService } from './services/LLMProviderService';
 import { ChatView, VIEW_TYPE_CHAT } from './ui/ChatView';
 
 interface AgentData {
@@ -14,12 +14,12 @@ interface AgentData {
 export default class AgentPlugin extends Plugin {
 	settings: AgentSettings;
 	chatManager: ChatManager;
-	llmService: OpenAIService;
+	llmService: LLMProviderService;
 
 	async onload() {
 		await this.loadDataAndSettings();
 
-		this.llmService = new OpenAIService(this.settings);
+		this.llmService = new LLMProviderService(this.settings);
 		
 		this.registerView(
 			VIEW_TYPE_CHAT,

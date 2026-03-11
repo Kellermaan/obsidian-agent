@@ -1,5 +1,5 @@
 export interface AgentSettings {
-	provider: 'openai' | 'anthropic' | 'custom';
+	provider: 'openai' | 'anthropic' | 'custom' | 'custom-anthropic';
 	apiKey: string;
 	model: string;
 	temperature: number;
