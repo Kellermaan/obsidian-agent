@@ -1,8 +1,76 @@
-/*
+/* Chat View Container */
+.agent-view-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 10px;
+}
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.agent-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    padding-bottom: 5px;
+}
 
-If your plugin does not need CSS, delete this file.
+.agent-header h3 {
+    margin: 0;
+}
 
-*/
+/* Messages Area */
+.agent-messages {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding-bottom: 10px;
+}
+
+.agent-message {
+    padding: 8px 12px;
+    border-radius: 8px;
+    max-width: 90%;
+    line-height: 1.5;
+}
+
+.agent-message.user {
+    align-self: flex-end;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.agent-message.assistant {
+    align-self: flex-start;
+    background-color: var(--background-secondary);
+    color: var(--text-normal);
+    border: 1px solid var(--background-modifier-border);
+}
+
+.agent-message-role {
+    font-size: 0.8em;
+    font-weight: bold;
+    margin-bottom: 4px;
+    opacity: 0.7;
+}
+
+.agent-message-content p {
+    margin-block-start: 0;
+    margin-block-end: 0;
+}
+
+/* Input Area */
+.agent-input-area {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    align-items: flex-end;
+}
+
+.agent-chat-input {
+    flex: 1;
+    resize: none;
+    min-height: 40px;
+}

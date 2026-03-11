@@ -1,99 +1,120 @@
-import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
-import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
+import { Editor, Notice, Plugin, WorkspaceLeaf } from 'obsidian';
+import { AgentSettings, DEFAULT_SETTINGS } from './settings/settings';
+import { AgentSettingTab } from './settings/SettingsTab';
+import { ChatManager } from './models/ChatManager';
+import { ChatState } from './models/types';
+import { OpenAIService } from './services/OpenAIService';
+import { ChatView, VIEW_TYPE_CHAT } from './ui/ChatView';
 
-// Remember to rename these classes and interfaces!
+interface AgentData {
+	settings: AgentSettings;
+	chatHistory: ChatState;
+}
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class AgentPlugin extends Plugin {
+	settings: AgentSettings;
+	chatManager: ChatManager;
+	llmService: OpenAIService;
 
 	async onload() {
-		await this.loadSettings();
+		await this.loadDataAndSettings();
 
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
+		this.llmService = new OpenAIService(this.settings);
+		
+		this.registerView(
+			VIEW_TYPE_CHAT,
+			(leaf) => new ChatView(leaf, this)
+		);
+
+		this.addRibbonIcon('bot', 'Agent chat', () => {
+			void this.activateView();
 		});
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
-
-		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
+			id: 'open-agent-chat',
+			name: 'Open chat',
 			callback: () => {
-				new SampleModal(this.app).open();
+				void this.activateView();
 			}
 		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				editor.replaceSelection('Sample editor command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
 
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
+		this.addCommand({
+			id: 'explain-selection',
+			name: 'Explain selection',
+			editorCallback: (editor: Editor) => {
+				const selection = editor.getSelection();
+				if (selection) {
+					void this.activateView().then((leaf) => {
+						const conversation = this.chatManager.getActiveConversation() || this.chatManager.createConversation();
+						this.chatManager.setActiveConversation(conversation.id);
+						this.chatManager.addMessage(conversation.id, 'user', `Explain this:\n\n${selection}`);
+						
+						if (leaf) {
+							const view = leaf.view;
+							if (view instanceof ChatView) {
+								void view.renderMessages().then(() => {
+									void view.generateResponse();
+								});
+							}
+						}
+					});
+				} else {
+					new Notice('No text selected');
 				}
-				return false;
 			}
 		});
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			new Notice("Click");
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-
+		this.addSettingTab(new AgentSettingTab(this.app, this));
 	}
 
 	onunload() {
+		// Cleanup
 	}
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MyPluginSettings>);
+	async loadDataAndSettings() {
+		const data = (await this.loadData()) as Partial<AgentData> | null;
+		
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, data?.settings);
+		
+		this.chatManager = new ChatManager();
+		if (data?.chatHistory) {
+			this.chatManager.loadState(data.chatHistory);
+		}
 	}
 
 	async saveSettings() {
-		await this.saveData(this.settings);
+		await this.saveData({
+			settings: this.settings,
+			chatHistory: this.chatManager.getState()
+		});
+		if (this.llmService) {
+			this.llmService.updateSettings(this.settings);
+		}
 	}
-}
-
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
+	
+	async saveChatHistory() {
+		await this.saveSettings();
 	}
 
-	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
+	async activateView(): Promise<WorkspaceLeaf | null> {
+		const { workspace } = this.app;
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
+		let leaf: WorkspaceLeaf | null = null;
+		const leaves = workspace.getLeavesOfType(VIEW_TYPE_CHAT);
+
+		if (leaves.length > 0) {
+			leaf = leaves[0] ?? null;
+		} else {
+			const rightLeaf = workspace.getRightLeaf(false);
+			if (rightLeaf) {
+				leaf = rightLeaf;
+				await leaf.setViewState({ type: VIEW_TYPE_CHAT, active: true });
+			}
+		}
+
+		if (leaf) {
+			await workspace.revealLeaf(leaf);
+		}
+		return leaf;
 	}
 }

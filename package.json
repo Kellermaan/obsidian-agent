@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-sample-plugin",
-	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"name": "obsidian-agent",
+	"version": "0.1.0",
+	"description": "An AI assistant plugin for Obsidian, similar to GitHub Copilot.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
@@ -10,8 +10,14 @@
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
 		"lint": "eslint ."
 	},
-	"keywords": [],
-	"license": "0-BSD",
+	"keywords": [
+		"obsidian",
+		"plugin",
+		"ai",
+		"agent",
+		"openai"
+	],
+	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "^16.11.6",
 		"esbuild": "0.25.5",
@@ -24,6 +30,7 @@
 		"jiti": "2.6.1"
 	},
 	"dependencies": {
-		"obsidian": "latest"
+		"obsidian": "latest",
+		"openai": "^4.28.0"
 	}
 }
