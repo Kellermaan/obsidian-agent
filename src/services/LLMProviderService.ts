@@ -214,7 +214,7 @@ export class LLMProviderService implements LLMService {
                 }),
                 tools,
                 tool_choice: 'auto',
-                temperature: this.settings.temperature,
+                temperature: this.getAgentTemperature(),
                 max_tokens: this.settings.maxTokens,
                 stream: false,
             }),
@@ -400,7 +400,7 @@ export class LLMProviderService implements LLMService {
             body: JSON.stringify({
                 model: this.settings.model,
                 max_tokens: this.settings.maxTokens,
-                temperature: this.settings.temperature,
+                temperature: this.getAgentTemperature(),
                 system: systemPrompt,
                 messages: anthropicMessages,
                 tools: tools.map((tool) => ({
@@ -408,6 +408,9 @@ export class LLMProviderService implements LLMService {
                     description: tool.function.description,
                     input_schema: tool.function.parameters,
                 })),
+                tool_choice: {
+                    type: 'auto',
+                },
             }),
         });
 
@@ -519,5 +522,10 @@ export class LLMProviderService implements LLMService {
         } catch {
             return { _raw: rawArgs };
         }
+    }
+
+    private getAgentTemperature(): number {
+        // Lower temperature makes tool-calling behavior more consistent in agent mode.
+        return Math.min(this.settings.temperature, 0.2);
     }
 }
