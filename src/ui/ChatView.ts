@@ -1,9 +1,12 @@
-import { ButtonComponent, ItemView, MarkdownRenderer, MarkdownView, Modal, Notice, Setting, TextAreaComponent, WorkspaceLeaf } from 'obsidian';
+import { ButtonComponent, ItemView, MarkdownRenderer, MarkdownView, Notice, TextAreaComponent, WorkspaceLeaf } from 'obsidian';
 import AgentPlugin from '../main';
 import { ChatManager } from '../models/ChatManager';
 import { AgentUndoOperation, Conversation } from '../models/types';
-import { AgentMessage, AgentToolDefinition } from '../services/LLMService';
+import { AgentMessage } from '../services/LLMService';
 import { VaultAgentService } from '../services/VaultAgentService';
+import { AgentToolExecutor } from '../services/agent/AgentToolExecutor';
+import { AgentToolRegistry } from '../services/agent/AgentToolRegistry';
+import { AgentRunMode, getAgentRunModeLabel, getNextAgentRunMode } from '../services/agent/types';
 
 export const VIEW_TYPE_CHAT = 'agent-chat-view';
 
@@ -11,18 +14,22 @@ export class ChatView extends ItemView {
 	plugin: AgentPlugin;
 	chatManager: ChatManager;
 	vaultAgentService: VaultAgentService;
+	toolRegistry: AgentToolRegistry;
+	toolExecutor: AgentToolExecutor;
 	conversationListEl: HTMLElement;
 	contextListEl: HTMLElement;
 	chatContainer: HTMLElement;
 	inputComponent: TextAreaComponent;
-	agentModeEnabled: boolean;
+	agentMode: AgentRunMode;
 
 	constructor(leaf: WorkspaceLeaf, plugin: AgentPlugin) {
 		super(leaf);
 		this.plugin = plugin;
 		this.chatManager = plugin.chatManager;
 		this.vaultAgentService = new VaultAgentService(plugin.app);
-		this.agentModeEnabled = false;
+		this.toolRegistry = new AgentToolRegistry();
+		this.toolExecutor = new AgentToolExecutor(plugin.app, this.vaultAgentService, this.toolRegistry);
+		this.agentMode = plugin.settings.defaultMode;
 	}
 
 	getViewType() {
@@ -49,9 +56,11 @@ export class ChatView extends ItemView {
 
 		const headerActions = header.createDiv({ cls: 'agent-header-actions' });
 		const agentModeButton = new ButtonComponent(headerActions);
-		agentModeButton.setButtonText('Agent mode: off').onClick(() => {
-			this.agentModeEnabled = !this.agentModeEnabled;
-			agentModeButton.setButtonText(this.agentModeEnabled ? 'Agent mode: on' : 'Agent mode: off');
+		agentModeButton.setButtonText(this.getModeButtonLabel()).onClick(() => {
+			this.agentMode = getNextAgentRunMode(this.agentMode);
+			this.plugin.settings.defaultMode = this.agentMode;
+			agentModeButton.setButtonText(this.getModeButtonLabel());
+			void this.plugin.saveSettings();
 		});
 
 		const newChatBtn = new ButtonComponent(headerActions);
@@ -132,44 +141,55 @@ export class ChatView extends ItemView {
 		this.renderConversationList();
 		await this.renderMessages();
 
-		if (this.agentModeEnabled) {
-			await this.generateAgentResponse();
-		} else {
+		if (this.agentMode === 'chat') {
 			await this.generateResponse();
+		} else {
+			await this.generateAgentResponse(this.agentMode);
 		}
 	}
 
-	async generateAgentResponse() {
+	async generateAgentResponse(mode: Exclude<AgentRunMode, 'chat'> = 'act') {
 		const conversation = this.chatManager.getActiveConversation();
 		if (!conversation) return;
 
-		const loadingMsg = this.chatManager.addMessage(conversation.id, 'assistant', 'Agent is planning...');
+		const loadingLabel = mode === 'plan' ? 'Agent is drafting a plan...' : 'Agent is working...';
+		const loadingMsg = this.chatManager.addMessage(conversation.id, 'assistant', loadingLabel);
 		await this.renderMessages();
 
 		try {
 			const undoOperations: AgentUndoOperation[] = [];
-			const workingMessages: AgentMessage[] = conversation.messages
-				.filter((message) => message.id !== loadingMsg.id)
-				.map((message) => ({ role: message.role, content: message.content }));
+			const promptMessages: AgentMessage[] = [];
+			if (this.plugin.settings.systemPrompt.trim()) {
+				promptMessages.push({
+					role: 'system',
+					content: this.plugin.settings.systemPrompt,
+				});
+			}
+
+			promptMessages.push({
+				role: 'system',
+				content: this.getAgentModePrompt(mode),
+			});
 
 			const contextPrompt = this.buildContextPrompt(conversation.id);
 			if (contextPrompt) {
-				workingMessages.unshift({ role: 'system', content: contextPrompt });
+				promptMessages.push({ role: 'system', content: contextPrompt });
 			}
 
-			workingMessages.unshift({
-				role: 'system',
-				content: 'You are an Obsidian vault agent. Use tools when file operations are required. Keep operations precise and minimal.',
-			});
+			const workingMessages: AgentMessage[] = conversation.messages
+				.filter((message) => message.id !== loadingMsg.id)
+				.map((message) => ({ role: message.role, content: message.content }));
+			workingMessages.unshift(...promptMessages.reverse());
 
-			const tools = this.getAgentTools();
+			const tools = this.toolRegistry.getTools(mode);
 			let finalAnswer = '';
+			const implicitTargetPath = this.getImplicitTargetPath(conversation);
 
-			for (let step = 0; step < 6; step++) {
+			for (let step = 0; step < this.plugin.settings.maxAgentSteps; step++) {
 				const response = await this.plugin.llmService.generateAgentResponse(workingMessages, tools);
 
 				if (response.toolCalls.length === 0) {
-					finalAnswer = response.content || 'Done.';
+					finalAnswer = response.content || (mode === 'plan' ? 'Plan complete.' : 'Done.');
 					break;
 				}
 
@@ -180,7 +200,10 @@ export class ChatView extends ItemView {
 				});
 
 				for (const toolCall of response.toolCalls) {
-					const execution = await this.executeAgentTool(toolCall.name, toolCall.arguments);
+					const execution = await this.toolExecutor.executeTool(toolCall.name, toolCall.arguments, {
+						implicitTargetPath,
+						requireWriteConfirmation: this.plugin.settings.requireWriteConfirmation && mode === 'act',
+					});
 					if (execution.undoOperation) {
 						undoOperations.push(execution.undoOperation);
 					}
@@ -193,7 +216,9 @@ export class ChatView extends ItemView {
 			}
 
 			if (!finalAnswer) {
-				finalAnswer = 'Agent finished tool calls. Please ask me to summarize results if needed.';
+				finalAnswer = mode === 'plan'
+					? 'Planning finished. Review the proposed steps and switch to act mode when you want execution.'
+					: 'Agent finished tool calls. Please ask me to summarize results if needed.';
 			}
 
 			this.chatManager.updateMessage(conversation.id, loadingMsg.id, finalAnswer);
@@ -205,6 +230,18 @@ export class ChatView extends ItemView {
 			this.chatManager.updateMessage(conversation.id, loadingMsg.id, `Agent error: ${message}`);
 			await this.renderMessages();
 		}
+	}
+
+	private getModeButtonLabel(): string {
+		return `Mode: ${getAgentRunModeLabel(this.agentMode)}`;
+	}
+
+	private getAgentModePrompt(mode: Exclude<AgentRunMode, 'chat'>): string {
+		if (mode === 'plan') {
+			return 'You are an Obsidian vault planning agent. Use only read-only tools to inspect the vault. Produce a concise execution plan, note assumptions, and do not attempt write operations.';
+		}
+
+		return 'You are an Obsidian vault action agent. Use tools when file operations are required. Keep operations precise, minimal, and aligned with the user request.';
 	}
 
 	async generateResponse() {
@@ -431,224 +468,6 @@ export class ChatView extends ItemView {
 		return `You are given attached context from the user vault.\n${priorityRule}\n${targetRule}\nIf the question needs data not present in context, say what is missing.\n\n${blocks.join('\n\n---\n\n')}`;
 	}
 
-	private getAgentTools(): AgentToolDefinition[] {
-		return [
-			{
-				type: 'function',
-				function: {
-					name: 'list_files',
-					description: 'List markdown files in the vault.',
-					parameters: {
-						type: 'object',
-						properties: {
-							limit: { type: 'number' },
-						},
-					},
-				},
-			},
-			{
-				type: 'function',
-				function: {
-					name: 'read_file',
-					description: 'Read file content by path.',
-					parameters: {
-						type: 'object',
-						required: ['path'],
-						properties: {
-							path: { type: 'string' },
-						},
-					},
-				},
-			},
-			{
-				type: 'function',
-				function: {
-					name: 'write_file',
-					description: 'Create or overwrite file content.',
-					parameters: {
-						type: 'object',
-						required: ['path', 'content'],
-						properties: {
-							path: { type: 'string' },
-							content: { type: 'string' },
-						},
-					},
-				},
-			},
-			{
-				type: 'function',
-				function: {
-					name: 'append_file',
-					description: 'Append content to existing file.',
-					parameters: {
-						type: 'object',
-						required: ['path', 'content'],
-						properties: {
-							path: { type: 'string' },
-							content: { type: 'string' },
-						},
-					},
-				},
-			},
-			{
-				type: 'function',
-				function: {
-					name: 'create_folder',
-					description: 'Create folder by path.',
-					parameters: {
-						type: 'object',
-						required: ['path'],
-						properties: {
-							path: { type: 'string' },
-						},
-					},
-				},
-			},
-			{
-				type: 'function',
-				function: {
-					name: 'rename_path',
-					description: 'Rename or move file/folder.',
-					parameters: {
-						type: 'object',
-						required: ['oldPath', 'newPath'],
-						properties: {
-							oldPath: { type: 'string' },
-							newPath: { type: 'string' },
-						},
-					},
-				},
-			},
-		];
-	}
-
-	private async executeAgentTool(
-		toolName: string,
-		rawArguments: string
-	): Promise<{ result: string; undoOperation?: AgentUndoOperation }> {
-		let args: Record<string, unknown> = {};
-		if (rawArguments.trim()) {
-			try {
-				args = JSON.parse(rawArguments) as Record<string, unknown>;
-			} catch {
-				throw new Error(`Invalid tool arguments for ${toolName}`);
-			}
-		}
-
-		const activeConversation = this.chatManager.getActiveConversation();
-		const implicitTargetPath = activeConversation ? this.getImplicitTargetPath(activeConversation) : null;
-		if (implicitTargetPath) {
-			const mismatchReason = this.getImplicitTargetMismatchReason(toolName, args, implicitTargetPath);
-			if (mismatchReason) {
-				return { result: mismatchReason };
-			}
-		}
-
-		if (this.requiresWriteConfirmation(toolName) && this.plugin.settings.requireWriteConfirmation) {
-			const approved = await this.confirmWriteAction(toolName, args);
-			if (!approved) {
-				return { result: `Cancelled by user: ${toolName}` };
-			}
-		}
-
-		switch (toolName) {
-			case 'list_files': {
-				const limit = typeof args.limit === 'number' ? args.limit : 200;
-				return { result: this.vaultAgentService.listFiles(limit) };
-			}
-			case 'read_file': {
-				const path = this.getStringArg(args, 'path');
-				return { result: await this.vaultAgentService.readFile(path) };
-			}
-			case 'write_file': {
-				const path = this.getStringArg(args, 'path');
-				const content = this.getStringArg(args, 'content');
-
-				const previousContent = await this.vaultAgentService.readFileIfExists(path);
-				const result = await this.vaultAgentService.writeFile(path, content);
-				const undoOperation: AgentUndoOperation = previousContent === null
-					? { type: 'delete_path', path }
-					: { type: 'restore_file', path, content: previousContent };
-
-				return { result, undoOperation };
-			}
-			case 'append_file': {
-				const path = this.getStringArg(args, 'path');
-				const content = this.getStringArg(args, 'content');
-				const previousContent = await this.vaultAgentService.readFileIfExists(path);
-				const result = await this.vaultAgentService.appendFile(path, content);
-				if (previousContent === null) {
-					return { result };
-				}
-
-				return {
-					result,
-					undoOperation: {
-						type: 'restore_file',
-						path,
-						content: previousContent,
-					},
-				};
-			}
-			case 'create_folder': {
-				const path = this.getStringArg(args, 'path');
-				const existed = this.vaultAgentService.getAbstractPath(path) !== null;
-				const result = await this.vaultAgentService.createFolder(path);
-				if (existed) {
-					return { result };
-				}
-
-				return {
-					result,
-					undoOperation: { type: 'delete_path', path },
-				};
-			}
-			case 'rename_path': {
-				const oldPath = this.getStringArg(args, 'oldPath');
-				const newPath = this.getStringArg(args, 'newPath');
-				const result = await this.vaultAgentService.renamePath(oldPath, newPath);
-				return {
-					result,
-					undoOperation: {
-						type: 'rename_path',
-						oldPath: newPath,
-						newPath: oldPath,
-					},
-				};
-			}
-			default:
-				throw new Error(`Unsupported tool: ${toolName}`);
-		}
-	}
-
-	private requiresWriteConfirmation(toolName: string): boolean {
-		return toolName === 'write_file'
-			|| toolName === 'append_file'
-			|| toolName === 'create_folder'
-			|| toolName === 'rename_path';
-	}
-
-	private async confirmWriteAction(toolName: string, args: Record<string, unknown>): Promise<boolean> {
-		return await new Promise<boolean>((resolve) => {
-			const modal = new AgentWriteConfirmModal(
-				this.app,
-				toolName,
-				JSON.stringify(args, null, 2),
-				resolve,
-			);
-			modal.open();
-		});
-	}
-
-	private getStringArg(args: Record<string, unknown>, key: string): string {
-		const value = args[key];
-		if (typeof value !== 'string' || value.length === 0) {
-			throw new Error(`Missing required argument: ${key}`);
-		}
-
-		return value;
-	}
-
 	private getImplicitTargetPath(conversation: Conversation): string | null {
 		const latestUserMessage = [...conversation.messages]
 			.reverse()
@@ -671,24 +490,6 @@ export class ChatView extends ItemView {
 			.find((item) => item.isAutoActiveFile && item.sourcePath)?.sourcePath;
 
 		return latestAutoSourcePath ?? null;
-	}
-
-	private getImplicitTargetMismatchReason(toolName: string, args: Record<string, unknown>, implicitTargetPath: string): string | null {
-		if (toolName === 'write_file' || toolName === 'append_file') {
-			const path = args.path;
-			if (typeof path === 'string' && path !== implicitTargetPath) {
-				return `Blocked: user referred to the current document. Use path "${implicitTargetPath}" for this edit.`;
-			}
-		}
-
-		if (toolName === 'rename_path') {
-			const oldPath = args.oldPath;
-			if (typeof oldPath === 'string' && oldPath !== implicitTargetPath) {
-				return `Blocked: user referred to the current document. Use oldPath "${implicitTargetPath}" if renaming this document.`;
-			}
-		}
-
-		return null;
 	}
 
 	private async copyMessageContent(content: string): Promise<void> {
@@ -750,61 +551,5 @@ export class ChatView extends ItemView {
 
 	async onClose() {
 		// Cleanup
-	}
-}
-
-class AgentWriteConfirmModal extends Modal {
-	private toolName: string;
-	private argsPreview: string;
-	private resolver: (approved: boolean) => void;
-	private resolved: boolean;
-
-	constructor(app: AgentPlugin['app'], toolName: string, argsPreview: string, resolver: (approved: boolean) => void) {
-		super(app);
-		this.toolName = toolName;
-		this.argsPreview = argsPreview;
-		this.resolver = resolver;
-		this.resolved = false;
-	}
-
-	onOpen(): void {
-		const { contentEl } = this;
-		contentEl.empty();
-
-		contentEl.createEl('h3', { text: 'Confirm write action' });
-		contentEl.createEl('p', { text: `Agent requested tool: ${this.toolName}` });
-
-		const previewEl = contentEl.createEl('pre', { cls: 'agent-write-confirm-preview' });
-		previewEl.setText(this.argsPreview);
-
-		new Setting(contentEl)
-			.addButton((button) =>
-				button
-					.setButtonText('Allow')
-					.setCta()
-					.onClick(() => {
-						this.resolveOnce(true);
-						this.close();
-					})
-			)
-			.addButton((button) =>
-				button
-					.setButtonText('Cancel')
-					.onClick(() => {
-						this.resolveOnce(false);
-						this.close();
-					})
-			);
-	}
-
-	onClose(): void {
-		this.resolveOnce(false);
-		this.contentEl.empty();
-	}
-
-	private resolveOnce(value: boolean): void {
-		if (this.resolved) return;
-		this.resolved = true;
-		this.resolver(value);
 	}
 }

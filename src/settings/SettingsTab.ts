@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import AgentPlugin from '../main';
 import { AgentSettings } from './settings';
+import { AGENT_RUN_MODE_LABELS } from '../services/agent/types';
 
 function isAgentProvider(value: string): value is AgentSettings['provider'] {
 	return value === 'openai' || value === 'anthropic' || value === 'custom' || value === 'custom-anthropic';
@@ -57,6 +58,23 @@ export class AgentSettingTab extends PluginSettingTab {
 					this.plugin.settings.model = value;
 					await this.plugin.saveSettings();
 				}));
+
+		new Setting(containerEl)
+			.setName('Default mode')
+			.setDesc('Choose whether the chat view starts in chat, plan, or act mode.')
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption('chat', AGENT_RUN_MODE_LABELS.chat)
+					.addOption('plan', AGENT_RUN_MODE_LABELS.plan)
+					.addOption('act', AGENT_RUN_MODE_LABELS.act)
+					.setValue(this.plugin.settings.defaultMode)
+					.onChange(async (value) => {
+						if (value === 'chat' || value === 'plan' || value === 'act') {
+							this.plugin.settings.defaultMode = value;
+						}
+						await this.plugin.saveSettings();
+					})
+			);
 		
 		if (this.plugin.settings.provider === 'custom' || this.plugin.settings.provider === 'custom-anthropic') {
 			const isCustomAnthropic = this.plugin.settings.provider === 'custom-anthropic';
@@ -107,6 +125,22 @@ export class AgentSettingTab extends PluginSettingTab {
 					}
 					await this.plugin.saveSettings();
 				}));
+
+		new Setting(containerEl)
+			.setName('Max agent steps')
+			.setDesc('Maximum number of tool-call rounds in plan or act mode.')
+			.addText((text) =>
+				text
+					.setPlaceholder('6')
+					.setValue(String(this.plugin.settings.maxAgentSteps))
+					.onChange(async (value) => {
+						const parsedValue = Number.parseInt(value, 10);
+						if (!Number.isNaN(parsedValue) && parsedValue > 0) {
+							this.plugin.settings.maxAgentSteps = parsedValue;
+						}
+						await this.plugin.saveSettings();
+					})
+			);
 
 		new Setting(containerEl)
 			.setName('Require confirmation before write actions')
