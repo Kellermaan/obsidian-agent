@@ -1,5 +1,7 @@
 # Obsidian Agent
 
+Live site: https://kellermaan.github.io/obsidian-agent/
+
 Obsidian Agent is an AI assistant plugin for Obsidian.
 It supports normal chat workflows and an agent workflow that can perform controlled file operations in your vault.
 
@@ -42,7 +44,7 @@ Write-like actions can require explicit approval depending on settings.
 4. Click **Install** and then **Enable**.
 
 ### Manual Installation
-1. Download the latest release from the [Releases](https://github.com/your-repo/obsidian-agent/releases) page.
+1. Download the latest release from the [Releases](https://github.com/Kellermaan/obsidian-agent/releases) page.
 2. Extract the main.js, manifest.json, and styles.css files.
 3. Move them to your vault's plugin folder: `.obsidian/plugins/obsidian-agent/`.
 4. Reload Obsidian and enable the plugin.
