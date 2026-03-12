@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-agent",
-	"version": "0.1.0",
+	"version": "0.1.2",
 	"description": "An AI assistant plugin for Obsidian, similar to GitHub Copilot.",
 	"main": "main.js",
 	"type": "module",
