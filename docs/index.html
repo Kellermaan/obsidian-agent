@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Obsidian Agent</title>
+	<meta
+		name="description"
+		content="Obsidian Agent brings chat, context-aware assistance, and controlled vault operations into your Obsidian workspace."
+	/>
+	<meta name="theme-color" content="#0f766e" />
+	<meta property="og:title" content="Obsidian Agent" />
+	<meta property="og:description" content="Chat, context-aware assistance, and controlled vault operations inside Obsidian." />
+	<meta property="og:type" content="website" />
+	<meta property="og:url" content="https://kellermaan.github.io/obsidian-agent/" />
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+	<link
+		href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+		rel="stylesheet"
+	/>
+	<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+	<div class="site-shell">
+		<header class="topbar">
+			<a class="brand" href="#home" aria-label="Obsidian Agent home">
+				<span class="brand-mark">OA</span>
+				<span class="brand-text">Obsidian Agent</span>
+			</a>
+			<nav class="topnav" aria-label="Primary navigation">
+				<a href="#features">Features</a>
+				<a href="#use-cases">Use cases</a>
+				<a href="#workflow">Workflow</a>
+				<a href="#install">Install</a>
+				<a href="#faq">FAQ</a>
+			</nav>
+			<a class="button button-ghost" href="https://github.com/Kellermaan/obsidian-agent" target="_blank" rel="noreferrer">GitHub</a>
+		</header>
+
+		<main id="home">
+			<section class="hero">
+				<div class="hero-copy">
+					<a class="hero-badge" href="https://github.com/Kellermaan/obsidian-agent" target="_blank" rel="noreferrer">Open source on GitHub · MIT licensed</a>
+					<p class="eyebrow">AI assistance designed for your vault</p>
+					<h1>Chat, act, and stay in control inside Obsidian.</h1>
+					<p class="hero-text">
+						Obsidian Agent turns your notes into a working environment for context-aware conversations,
+						structured agent workflows, and carefully scoped file operations.
+					</p>
+					<p class="hero-supporting-text">
+						It is built for note-heavy workflows: ask questions with real vault context, switch into agent mode when you want file actions,
+						and keep explicit guardrails on every write-like step.
+					</p>
+					<div class="hero-actions">
+						<a class="button button-primary" href="#install">Get started</a>
+						<a class="button button-secondary" href="https://github.com/Kellermaan/obsidian-agent/releases" target="_blank" rel="noreferrer">View releases</a>
+					</div>
+					<ul class="hero-points" aria-label="Highlights">
+						<li>Streaming chat with multi-session history</li>
+						<li>Context from notes, files, and selections</li>
+						<li>Agent mode with reversible vault operations</li>
+					</ul>
+					<div class="hero-mini-grid" aria-label="Quick facts">
+						<div class="mini-card">
+							<span>Vault-first</span>
+							<p>Designed around note context instead of a detached browser tab workflow.</p>
+						</div>
+						<div class="mini-card">
+							<span>Guardrails built in</span>
+							<p>Write confirmation and one-click revert make agent runs safer to try.</p>
+						</div>
+					</div>
+				</div>
+				<div class="hero-panel">
+					<div class="hero-panel-visual" aria-hidden="true">
+						<img src="./assets/hero-illustration.svg" alt="" />
+					</div>
+					<div class="hero-panel-stack">
+						<div class="hero-card hero-card-main">
+							<p class="hero-card-label">Active conversation</p>
+							<h2>Explain this architecture and suggest a safer refactor.</h2>
+							<p>
+								Context attached: ChatView.ts, selected code block, current note.
+							</p>
+						</div>
+						<div class="hero-side-grid">
+							<div class="hero-card hero-card-side">
+								<p class="hero-card-label">Agent mode</p>
+								<ul>
+									<li>Read file</li>
+									<li>Append note</li>
+									<li>Rename path</li>
+									<li>Revert operations</li>
+								</ul>
+							</div>
+							<div class="hero-card hero-card-side hero-card-checklist">
+								<p class="hero-card-label">Why it feels safe</p>
+								<ul>
+									<li>Optional approval before edits</li>
+									<li>Vault-scoped operations only</li>
+									<li>Undo metadata on completed runs</li>
+								</ul>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section class="overview-strip" aria-label="At a glance">
+				<article class="overview-card">
+					<p class="overview-label">Provider support</p>
+					<h3>Use OpenAI, Anthropic, or your own compatible endpoint.</h3>
+					<p>Configure base URL, model, key, prompt, temperature, and token limits from settings.</p>
+				</article>
+				<article class="overview-card">
+					<p class="overview-label">Two working modes</p>
+					<h3>Stay in chat for thinking, switch to agent mode for controlled file actions.</h3>
+					<p>That keeps the product understandable: one mode for guidance, one mode for action.</p>
+				</article>
+				<article class="overview-card">
+					<p class="overview-label">Rollback support</p>
+					<h3>Completed agent runs can keep undo metadata for fast recovery.</h3>
+					<p>If an experiment goes too far, you have a clear way to step back instead of cleaning up by hand.</p>
+				</article>
+			</section>
+
+			<section id="features" class="section">
+				<div class="section-heading">
+					<p class="eyebrow">Core features</p>
+					<h2>Built for note-heavy workflows, not generic chat tabs.</h2>
+				</div>
+				<div class="feature-grid">
+					<article class="feature-card accent-sand">
+						<h3>Context-rich chat</h3>
+						<p>Pull in notes, file context, and editor selections so answers stay grounded in your vault.</p>
+					</article>
+					<article class="feature-card accent-sky">
+						<h3>Multi-session workspace</h3>
+						<p>Switch between conversations without losing context, and keep separate threads for separate tasks.</p>
+					</article>
+					<article class="feature-card accent-rose">
+						<h3>Controlled agent actions</h3>
+						<p>Let the model list, read, write, append, create, and rename inside the vault with approval gates.</p>
+					</article>
+					<article class="feature-card accent-mint">
+						<h3>Revertable changes</h3>
+						<p>Completed agent responses can capture undo metadata, so experimental runs are easier to trust.</p>
+					</article>
+				</div>
+			</section>
+
+			<section id="use-cases" class="section use-cases-section">
+				<div class="section-heading narrow">
+					<p class="eyebrow">Use cases</p>
+					<h2>Made for the day-to-day work that actually happens in a knowledge base.</h2>
+				</div>
+				<div class="use-case-grid">
+					<article class="use-case-card">
+						<p class="use-case-kicker">Review</p>
+						<h3>Explain code and notes in place</h3>
+						<p>Attach a file or selection and ask for summaries, critiques, refactors, or next-step suggestions without leaving Obsidian.</p>
+					</article>
+					<article class="use-case-card">
+						<p class="use-case-kicker">Organize</p>
+						<h3>Turn prompts into controlled vault updates</h3>
+						<p>Use agent mode to create folders, append notes, rename paths, or draft structured content with explicit approval gates.</p>
+					</article>
+					<article class="use-case-card">
+						<p class="use-case-kicker">Iterate</p>
+						<h3>Experiment without losing trust</h3>
+						<p>Keep moving quickly because completed agent responses can store undo metadata for one-click rollback.</p>
+					</article>
+				</div>
+			</section>
+
+			<section id="workflow" class="section workflow-section">
+				<div class="section-heading narrow">
+					<p class="eyebrow">How it works</p>
+					<h2>A practical loop for asking, acting, and reviewing.</h2>
+				</div>
+				<div class="workflow-grid">
+					<article>
+						<span>01</span>
+						<h3>Collect the right context</h3>
+						<p>Attach the current note, a file, or a selection before asking a vault-specific question.</p>
+					</article>
+					<article>
+						<span>02</span>
+						<h3>Choose chat or agent mode</h3>
+						<p>Use normal chat for exploration. Switch to agent mode when you need controlled file operations.</p>
+					</article>
+					<article>
+						<span>03</span>
+						<h3>Approve write-like actions</h3>
+						<p>Keep confirmation enabled if you want explicit approval before edits, folder creation, or renames.</p>
+					</article>
+					<article>
+						<span>04</span>
+						<h3>Revert when needed</h3>
+						<p>If an agent run went too far, use the revert control to undo recorded operations in reverse order.</p>
+					</article>
+				</div>
+			</section>
+
+			<section class="section split-section">
+				<div class="info-card">
+					<p class="eyebrow">Provider support</p>
+					<h2>Bring your own model endpoint.</h2>
+					<p>
+						Use OpenAI, Anthropic, or custom compatible endpoints. Configure API key, base URL, model, system prompt,
+						temperature, and max tokens from the Obsidian settings tab.
+					</p>
+				</div>
+				<div class="info-card security-card">
+					<p class="eyebrow">Safety model</p>
+					<h2>Vault-scoped actions with explicit guardrails.</h2>
+					<ul>
+						<li>Write confirmation for write-like operations</li>
+						<li>Undo metadata for completed agent responses</li>
+						<li>Context-aware workflows instead of blind automation</li>
+					</ul>
+				</div>
+			</section>
+
+			<section id="install" class="section install-section">
+				<div class="section-heading narrow">
+					<p class="eyebrow">Install</p>
+					<h2>Two ways to add Obsidian Agent to your vault.</h2>
+				</div>
+				<div class="install-grid">
+					<article class="install-card">
+						<h3>Manual install</h3>
+						<ol>
+							<li>Download the latest release assets.</li>
+							<li>Place main.js, manifest.json, and styles.css in .obsidian/plugins/obsidian-agent/.</li>
+							<li>Reload Obsidian and enable the plugin from Settings → Community plugins.</li>
+						</ol>
+					</article>
+					<article class="install-card">
+						<h3>Development setup</h3>
+						<ol>
+							<li>Clone the repository and run npm install.</li>
+							<li>Run npm run dev for watch mode.</li>
+							<li>Use npm run build and npm run lint before packaging a release.</li>
+						</ol>
+					</article>
+				</div>
+			</section>
+
+			<section class="section cta-section">
+				<div class="cta-panel">
+					<div>
+						<p class="eyebrow">Start here</p>
+						<h2>Clone it, install it, or just inspect the code.</h2>
+						<p class="cta-text">The plugin is open source, easy to self-host against your own provider stack, and small enough to understand without digging through a huge framework.</p>
+					</div>
+					<div class="cta-actions">
+						<a class="button button-primary" href="https://github.com/Kellermaan/obsidian-agent" target="_blank" rel="noreferrer">Open repository</a>
+						<a class="button button-secondary" href="https://github.com/Kellermaan/obsidian-agent/releases" target="_blank" rel="noreferrer">Download latest release</a>
+					</div>
+				</div>
+			</section>
+
+			<section id="faq" class="section faq-section">
+				<div class="section-heading narrow">
+					<p class="eyebrow">FAQ</p>
+					<h2>Questions you will probably ask first.</h2>
+				</div>
+				<div class="faq-list">
+					<article>
+						<h3>Does it work only with cloud providers?</h3>
+						<p>No. You can point it at custom OpenAI-compatible or Anthropic-compatible endpoints when available.</p>
+					</article>
+					<article>
+						<h3>Can it modify my files automatically?</h3>
+						<p>Agent mode can perform vault operations, and write-like actions can require explicit confirmation.</p>
+					</article>
+					<article>
+						<h3>What data is stored locally?</h3>
+						<p>Plugin settings and chat history are persisted through Obsidian plugin data APIs.</p>
+					</article>
+				</div>
+			</section>
+		</main>
+
+		<footer class="footer">
+			<div>
+				<p class="footer-title">Obsidian Agent</p>
+				<p>Context-aware assistance and controlled vault actions for Obsidian.</p>
+			</div>
+			<div class="footer-links">
+				<a href="https://github.com/Kellermaan/obsidian-agent" target="_blank" rel="noreferrer">Repository</a>
+				<a href="https://github.com/Kellermaan/obsidian-agent/releases" target="_blank" rel="noreferrer">Releases</a>
+				<a href="https://docs.obsidian.md" target="_blank" rel="noreferrer">Obsidian docs</a>
+			</div>
+		</footer>
+	</div>
+</body>
+</html>
