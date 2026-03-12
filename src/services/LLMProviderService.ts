@@ -465,16 +465,33 @@ export class LLMProviderService implements LLMService {
             }
 
             if (message.role === 'tool') {
-                if (message.toolCallId) {
+                const toolResultBlock = message.toolCallId
+                    ? {
+                        type: 'tool_result' as const,
+                        tool_use_id: message.toolCallId,
+                        content: message.content,
+                    }
+                    : null;
+
+                // Anthropic requires all tool_results from the same assistant turn
+                // to be batched into a single user message. If the previous mapped
+                // message is already a user message whose content is an array of
+                // tool_result blocks, append to it instead of creating a new message.
+                const prev = mappedMessages[mappedMessages.length - 1];
+                const prevContentArr = Array.isArray(prev?.content) ? (prev.content as Array<{ type: string }>) : null;
+                if (
+                    toolResultBlock &&
+                    prev &&
+                    prev.role === 'user' &&
+                    prevContentArr !== null &&
+                    prevContentArr.length > 0 &&
+                    prevContentArr[0]?.type === 'tool_result'
+                ) {
+                    (prev.content as Array<typeof toolResultBlock>).push(toolResultBlock);
+                } else if (toolResultBlock) {
                     mappedMessages.push({
                         role: 'user',
-                        content: [
-                            {
-                                type: 'tool_result',
-                                tool_use_id: message.toolCallId,
-                                content: message.content,
-                            },
-                        ],
+                        content: [toolResultBlock],
                     });
                 } else {
                     mappedMessages.push({
