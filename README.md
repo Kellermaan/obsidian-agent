@@ -5,7 +5,7 @@ Live site: https://kellermaan.github.io/obsidian-agent/
 Obsidian Agent is an AI assistant plugin for Obsidian.
 It supports normal chat workflows and an agent workflow that can perform controlled file operations in your vault.
 
-![Obsidian Agent](https://via.placeholder.com/800x400?text=Obsidian+Agent+Placeholder)
+![Obsidian Agent interface preview](docs/assets/readme-preview.png)
 
 ## Features
 
